@@ -14,11 +14,29 @@ variable "folder_id" {
 }
 
 variable "billing_account" {
-  default     = "011168-59E2C9-06B012"
   description = "Billing account ID"
   type        = string
 }
 
 variable "ip_cidr_range" {
-  default = "10.10.10.0/24"
+  description = "Main subnet IP CIDR range"
+  type        = string
+}
+
+variable "proxy_ip_cidr_range" {
+  description = "Load balancer proxy-only subnet IP CIDR range"
+  type        = string
+}
+
+variable "NGINX_HELLO_PRIV_KEY" {
+  description = "Nginx-hello application private key"
+  sensitive   = true
+}
+
+variable "NGINX_HELLO_CERT" {
+  description = "Nginx-hello application certificate"
+}
+
+variable "nginx_app_svc" {
+  description = "Cross-project application service link"
 }

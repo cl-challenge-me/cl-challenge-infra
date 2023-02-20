@@ -1,79 +1,73 @@
-resource "google_compute_global_network_endpoint_group" "external_proxy" {
-  provider              = google-beta
-  project               = module.project-networking.project_id
-  name                  = "network-endpoint"
-  network_endpoint_type = "INTERNET_FQDN_PORT"
-  default_port          = "443"
-}
-
-resource "google_compute_global_network_endpoint" "proxy" {
+# Shared VPC network - proxy-only subnet
+resource "google_compute_subnetwork" "proxy" {
+  name     = "proxy-only-subnet"
   provider = google-beta
   project  = module.project-networking.project_id
 
-  global_network_endpoint_group = google_compute_global_network_endpoint_group.external_proxy.id
-  fqdn                          = "nginx-hello-t2znprr3xa-lz.a.run.app"
-  port                          = google_compute_global_network_endpoint_group.external_proxy.default_port
+  ip_cidr_range = var.proxy_ip_cidr_range
+  role          = "ACTIVE"
+  purpose       = "REGIONAL_MANAGED_PROXY"
+  network       = module.project-networking.network_id
 }
 
-resource "google_compute_backend_service" "default" {
-  provider = google-beta
-  project  = module.project-networking.project_id
-
-  name                            = "backend-service"
-  enable_cdn                      = true
-  timeout_sec                     = 10
-  connection_draining_timeout_sec = 10
-
-  custom_request_headers  = ["host: ${google_compute_global_network_endpoint.proxy.fqdn}"]
-  custom_response_headers = ["X-Cache-Hit: {cdn_cache_status}"]
-
-  backend {
-    group = google_compute_global_network_endpoint_group.external_proxy.id
-  }
-  protocol = "HTTPS"
+resource "google_compute_address" "default" {
+  project      = module.project-networking.project_id
+  name         = "ext-${var.region}-lb-fe-ip"
+  network_tier = "STANDARD"
 }
 
-resource "google_compute_global_address" "default" {
-  provider = google-beta
-  project  = module.project-networking.project_id
-  name     = "tcp-proxy-xlb-ip"
-}
-
-resource "google_compute_target_https_proxy" "default" {
+resource "google_compute_forwarding_rule" "default" {
   project = module.project-networking.project_id
 
-  name             = "test-proxy"
-  url_map          = google_compute_url_map.default.id
-  ssl_certificates = [google_compute_ssl_certificate.default.id]
-}
+  depends_on = [google_compute_subnetwork.proxy]
+  name       = "ext-${var.region}-lb"
 
-resource "google_compute_url_map" "default" {
-  project = module.project-networking.project_id
-
-  name        = "url-map"
-  description = "a description"
-
-  default_service = google_compute_backend_service.default.id
-
-  host_rule {
-    hosts        = ["example.com"]
-    path_matcher = "allpaths"
-  }
-
-  path_matcher {
-    name            = "allpaths"
-    default_service = google_compute_backend_service.default.id
-  }
-}
-
-resource "google_compute_global_forwarding_rule" "default" {
-  project  = module.project-networking.project_id
-
-  name                  = "ssl-proxy-xlb-forwarding-rule"
-  provider              = google
   ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL"
+  load_balancing_scheme = "EXTERNAL_MANAGED"
   port_range            = "443"
-  target                = google_compute_target_https_proxy.default.id
-  ip_address            = google_compute_global_address.default.id
+  target                = google_compute_region_target_https_proxy.default.id
+  network               = module.project-networking.network_id
+  ip_address            = google_compute_address.default.id
+  network_tier          = "STANDARD"
+}
+
+resource "google_compute_region_target_https_proxy" "default" {
+  project = module.project-networking.project_id
+
+  name             = "ext-${var.region}-lb-https-proxy"
+  url_map          = google_compute_region_url_map.default.id
+  ssl_certificates = [google_compute_region_ssl_certificate.nginx-hello.id]
+}
+
+resource "google_compute_region_url_map" "default" {
+  project = module.project-networking.project_id
+
+  name            = "ext-${var.region}-lb-url-map"
+  default_service = var.nginx_app_svc
+  depends_on = [
+    google_compute_shared_vpc_service_project.app-project
+  ]
+}
+
+data "google_compute_zones" "available" {
+  project = module.project-networking.project_id
+}
+
+# Compute instance helper VM
+resource "google_compute_instance" "magic-vm" {
+  project      = module.project-networking.project_id
+  name         = "magic-vm-${var.env}"
+  machine_type = "f1-micro"
+  zone         = data.google_compute_zones.available.names[0]
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-11"
+    }
+  }
+
+  network_interface {
+    network    = module.project-networking.network_id
+    subnetwork = module.project-networking.subnet_id
+  }
 }
