@@ -16,58 +16,76 @@ resource "google_compute_address" "default" {
   network_tier = "STANDARD"
 }
 
-resource "google_compute_forwarding_rule" "default" {
+module "gce-lb-http" {
+  source  = "GoogleCloudPlatform/lb-http/google"
+  version = "7.0.0"
+
   project = module.project-networking.project_id
+  name    = "group-http-lb"
+  ssl     = true
 
-  depends_on = [google_compute_subnetwork.proxy]
-  name       = "ext-${var.region}-lb"
+  private_key = var.NGINX_HELLO_PRIV_KEY
+  certificate = var.NGINX_HELLO_CERT
 
-  ip_protocol           = "TCP"
-  load_balancing_scheme = "EXTERNAL_MANAGED"
-  port_range            = "443"
-  target                = google_compute_region_target_https_proxy.default.id
-  network               = module.project-networking.network_id
-  ip_address            = google_compute_address.default.id
-  network_tier          = "STANDARD"
-}
+  firewall_networks = []
 
-resource "google_compute_region_target_https_proxy" "default" {
-  project = module.project-networking.project_id
+  backends = {
+    default = {
+      description             = null
+      port                    = "443"
+      protocol                = "HTTPS"
+      timeout_sec             = 10
+      port_name               = "https"
+      enable_cdn              = false
+      custom_request_headers  = null
+      custom_response_headers = null
+      security_policy         = null
+      compression_mode        = null
 
-  name             = "ext-${var.region}-lb-https-proxy"
-  url_map          = google_compute_region_url_map.default.id
-  ssl_certificates = [google_compute_region_ssl_certificate.nginx-hello.id]
-}
+      connection_draining_timeout_sec = null
+      session_affinity                = null
+      affinity_cookie_ttl_sec         = null
 
-resource "google_compute_region_url_map" "default" {
-  project = module.project-networking.project_id
+      health_check = null
 
-  name            = "ext-${var.region}-lb-url-map"
-  default_service = var.nginx_app_svc
-  depends_on = [
-    google_compute_shared_vpc_service_project.app-project
-  ]
-}
+      log_config = {
+        enable      = true
+        sample_rate = 1.0
+      }
 
-data "google_compute_zones" "available" {
-  project = module.project-networking.project_id
-}
+      groups = [
+        {
+          # Each node pool instance group should be added to the backend.
+          group                        = google_compute_region_network_endpoint_group.psc-neg.id
+          balancing_mode               = null
+          capacity_scaler              = null
+          description                  = null
+          max_connections              = null
+          max_connections_per_instance = null
+          max_connections_per_endpoint = null
+          max_rate                     = null
+          max_rate_per_instance        = null
+          max_rate_per_endpoint        = null
+          max_utilization              = null
+          health_check                 = null
+        },
+      ]
 
-# Compute instance helper VM
-resource "google_compute_instance" "magic-vm" {
-  project      = module.project-networking.project_id
-  name         = "magic-vm-${var.env}"
-  machine_type = "f1-micro"
-  zone         = data.google_compute_zones.available.names[0]
-
-  boot_disk {
-    initialize_params {
-      image = "debian-cloud/debian-11"
+      iap_config = {
+        enable               = false
+        oauth2_client_id     = null
+        oauth2_client_secret = null
+      }
     }
   }
+}
 
-  network_interface {
-    network    = module.project-networking.network_id
-    subnetwork = module.project-networking.subnet_id
-  }
+resource "google_compute_region_network_endpoint_group" "psc-neg" {
+  project               = module.project-networking.project_id
+  name                  = "nginx-hello-psc-neg"
+  network_endpoint_type = "PRIVATE_SERVICE_CONNECT"
+  psc_target_service    = "projects/nginx-hello-dev-19252/regions/europe-north1/serviceAttachments/hello-app"
+  network               = module.project-networking.network_id
+  subnetwork            = module.project-networking.subnet_id
+  region                = var.region
 }
