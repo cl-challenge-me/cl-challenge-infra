@@ -7,5 +7,5 @@ output "network_id" {
 }
 
 output "fe_ip_address" {
-  value = google_compute_address.default.address
+  value = google_compute_global_address.lb-fe-ip.address
 }

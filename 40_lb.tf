@@ -10,10 +10,11 @@ resource "google_compute_subnetwork" "proxy" {
   network       = module.project-networking.network_id
 }
 
-resource "google_compute_address" "default" {
-  project      = module.project-networking.project_id
-  name         = "ext-${var.region}-lb-fe-ip"
-  network_tier = "STANDARD"
+resource "google_compute_global_address" "lb-fe-ip" {
+  provider   = google-beta
+  project    = module.project-networking.project_id
+  name       = "l7-lb-fe-ip"
+  ip_version = "IPV4"
 }
 
 module "gce-lb-http" {
@@ -21,11 +22,16 @@ module "gce-lb-http" {
   version = "7.0.0"
 
   project = module.project-networking.project_id
-  name    = "group-http-lb"
+  name    = "global-l7-lb"
   ssl     = true
+
+  create_address = false
+  address        = google_compute_global_address.lb-fe-ip.address
 
   private_key = var.NGINX_HELLO_PRIV_KEY
   certificate = var.NGINX_HELLO_CERT
+
+  load_balancing_scheme = "EXTERNAL_MANAGED"
 
   firewall_networks = []
 
@@ -84,8 +90,9 @@ resource "google_compute_region_network_endpoint_group" "psc-neg" {
   project               = module.project-networking.project_id
   name                  = "nginx-hello-psc-neg"
   network_endpoint_type = "PRIVATE_SERVICE_CONNECT"
-  psc_target_service    = "projects/nginx-hello-dev-19252/regions/europe-north1/serviceAttachments/hello-app"
+  psc_target_service    = "projects/nginx-hello-dev-19252/regions/europe-north1/serviceAttachments/nginx-hello-europe-north1"
   network               = module.project-networking.network_id
   subnetwork            = module.project-networking.subnet_id
   region                = var.region
 }
+
