@@ -8,7 +8,7 @@ module "project-networking" {
   source = "../cl-challenge-base-project"
   # "git@github.com:pavelrn/cl-challenge-base-project.git?ref=v1.4"
   name            = "networking-${var.env}"
-  folder_id       = google_folder.infra.folder_id
+  folder_id       = var.folder_id
   services        = local.services
   billing_account = var.billing_account
   region          = var.region
