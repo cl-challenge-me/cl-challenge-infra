@@ -32,7 +32,7 @@ module "gce-lb-http" {
       enable_cdn              = false
       custom_request_headers  = null
       custom_response_headers = null
-      security_policy         = null
+      security_policy         = module.cloud_armor.policy.id
       compression_mode        = null
 
       connection_draining_timeout_sec = null

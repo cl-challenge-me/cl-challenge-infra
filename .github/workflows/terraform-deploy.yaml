@@ -1,0 +1,76 @@
+name: 'Terraform Deploy'
+
+on:
+  workflow_call:
+    inputs:
+      env:
+        description: 'Environment (dev, stage or prod)'
+        type: string
+        required: true
+      tf_state_bucket:
+        description: 'Bucket name to store terraform state'
+        type: string
+        required: true
+      workload_identity_provider:
+        description: 'Workload Identity Provider name'
+        type: string
+        required: true
+      service_account:
+        description: 'Service Account email'
+        type: string
+        required: true
+      
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    name: 'Terraform deploy'
+    environment: ${{ inputs.env }}
+    steps:
+
+    - name: Checkout Repo
+      uses: actions/checkout@v1
+
+    - name: Debug
+      run: |
+        echo github.ref=${{ github.ref }}
+        echo github.event_name=${{ github.event_name }}
+      shell: bash
+
+    - id: 'auth'
+      name: 'Authenticate to Google Cloud'
+      uses: 'google-github-actions/auth@v0'
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.3.7
+        terraform_wrapper: false
+
+    - name: Terraform Init
+      id: init
+      run: terraform init -backend-config="bucket=${{ inputs.tf_state_bucket }}" -var-file=vars/${{ inputs.env }}.tfvars
+      shell: bash
+
+    - name: Terraform Plan
+      id: plan
+      run: terraform plan -input=false -var-file=vars/${{ inputs.env }}.tfvars -no-color -out tf.plan
+      shell: bash
+
+    - name: Saving "terraform show"
+      if: github.event_name == 'pull_request'
+      id: show
+      run: terraform show -no-color tf.plan 2>&1 > /tmp/plan.txt
+      shell: bash
+
+    - name: Terraform Apply
+      run: terraform apply -input=false tf.plan
+      shell: bash

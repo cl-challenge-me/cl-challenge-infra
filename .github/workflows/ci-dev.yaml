@@ -1,0 +1,16 @@
+name: 'Infra - Dev'
+on:
+  pull_request:
+    branches:
+    - dev
+
+jobs:
+  terraform:
+    name: "Dev deploy"
+    uses: "./.github/workflows/terraform-deploy.yaml"
+    with:
+      env: dev
+      tf_state_bucket: cl-challenge-dev
+      workload_identity_provider: projects/995096337479/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+      service_account: provisioner-sa-dev@provisioner-377821.iam.gserviceaccount.com
+    secrets: inherit
