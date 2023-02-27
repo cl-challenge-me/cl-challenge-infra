@@ -1,15 +1,3 @@
-# Shared VPC network - proxy-only subnet
-resource "google_compute_subnetwork" "proxy" {
-  name     = "proxy-only-subnet"
-  provider = google-beta
-  project  = module.project-networking.project_id
-
-  ip_cidr_range = var.proxy_ip_cidr_range
-  role          = "ACTIVE"
-  purpose       = "REGIONAL_MANAGED_PROXY"
-  network       = module.project-networking.network_id
-}
-
 resource "google_compute_global_address" "lb-fe-ip" {
   provider   = google-beta
   project    = module.project-networking.project_id
@@ -28,8 +16,7 @@ module "gce-lb-http" {
   create_address = false
   address        = google_compute_global_address.lb-fe-ip.address
 
-  private_key = var.NGINX_HELLO_PRIV_KEY
-  certificate = var.NGINX_HELLO_CERT
+  managed_ssl_certificate_domains = [module.cloud-ep-dns.endpoint]
 
   load_balancing_scheme = "EXTERNAL_MANAGED"
 
@@ -60,9 +47,10 @@ module "gce-lb-http" {
       }
 
       groups = [
+        for neg in google_compute_region_network_endpoint_group.psc-neg :
         {
           # Each node pool instance group should be added to the backend.
-          group                        = google_compute_region_network_endpoint_group.psc-neg.id
+          group                        = neg.id
           balancing_mode               = null
           capacity_scaler              = null
           description                  = null
@@ -74,7 +62,7 @@ module "gce-lb-http" {
           max_rate_per_endpoint        = null
           max_utilization              = null
           health_check                 = null
-        },
+        }
       ]
 
       iap_config = {
@@ -87,12 +75,13 @@ module "gce-lb-http" {
 }
 
 resource "google_compute_region_network_endpoint_group" "psc-neg" {
-  project               = module.project-networking.project_id
-  name                  = "nginx-hello-psc-neg"
-  network_endpoint_type = "PRIVATE_SERVICE_CONNECT"
-  psc_target_service    = "projects/nginx-hello-dev-19252/regions/europe-north1/serviceAttachments/nginx-hello-europe-north1"
-  network               = module.project-networking.network_id
-  subnetwork            = module.project-networking.subnet_id
-  region                = var.region
-}
+  for_each = toset(var.regions)
+  project  = module.project-networking.project_id
+  region   = each.key
 
+  name                  = "nginx-hello-psc-neg-${each.key}"
+  network_endpoint_type = "PRIVATE_SERVICE_CONNECT"
+  psc_target_service    = "projects/${var.app_project_id}/regions/${each.key}/serviceAttachments/${var.app_name}-${each.key}"
+  network               = module.project-networking.network_id
+  subnetwork            = module.project-networking.subnets[each.key].id
+}

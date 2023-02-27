@@ -1,6 +1,6 @@
-variable "region" {
-  description = "Region to deploy infrastructure and applications"
-  type        = string
+variable "regions" {
+  description = "Regions where the applications are deployed"
+  type        = list(any)
 }
 
 variable "env" {
@@ -18,25 +18,15 @@ variable "billing_account" {
   type        = string
 }
 
-variable "ip_cidr_range" {
-  description = "Main subnet IP CIDR range"
+variable "vm_ip_cidr_range" {
+  description = "Project IP range used for VMs, le /24 (IP range is split across regions)"
   type        = string
 }
 
-variable "proxy_ip_cidr_range" {
-  description = "Load balancer proxy-only subnet IP CIDR range"
-  type        = string
+variable "app_project_id" {
+  type = string
 }
 
-variable "NGINX_HELLO_PRIV_KEY" {
-  description = "Nginx-hello application private key"
-  sensitive   = true
-}
-
-variable "NGINX_HELLO_CERT" {
-  description = "Nginx-hello application certificate"
-}
-
-variable "nginx_app_svc" {
-  description = "Cross-project application service link"
+variable "app_name" {
+  type = string
 }

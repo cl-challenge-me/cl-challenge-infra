@@ -9,5 +9,4 @@ terraform {
 }
 
 provider "google" {
-  region = var.region
 }
