@@ -5,7 +5,7 @@ locals {
 }
 
 module "project-networking" {
-  source = "git@github.com:pavelrn/cl-challenge-base-project.git?ref=v1.6"
+  source          = "github.com/cl-challenge-me/cl-challenge-base-project?ref=v1.6"
   name            = "networking-${var.env}"
   folder_id       = var.folder_id
   services        = local.services
