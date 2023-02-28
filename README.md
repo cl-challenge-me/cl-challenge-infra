@@ -53,7 +53,7 @@ terraform apply -var-file=vars/prod.tfvars
 | <a name="module_cloud-ep-dns"></a> [cloud-ep-dns](#module\_cloud-ep-dns) | terraform-google-modules/endpoints-dns/google | n/a |
 | <a name="module_cloud_armor"></a> [cloud\_armor](#module\_cloud\_armor) | GoogleCloudPlatform/cloud-armor/google | n/a |
 | <a name="module_gce-lb-http"></a> [gce-lb-http](#module\_gce-lb-http) | GoogleCloudPlatform/lb-http/google | 7.0.0 |
-| <a name="module_project-networking"></a> [project-networking](#module\_project-networking) | git@github.com:pavelrn/cl-challenge-base-project.git | v1.6 |
+| <a name="module_project-networking"></a> [project-networking](#module\_project-networking) | github.com/cl-challenge-me/cl-challenge-base-project | v1.6 |
 
 ## Resources
 
